@@ -122,7 +122,7 @@ def run(args: argparse.Namespace) -> None:
     if args.tokens_file:
         tokens = [t.strip() for t in Path(args.tokens_file).read_text().splitlines() if t.strip()]
     log_names = args.log_names or None
-    if log_names is None:
+    if log_names is None and tokens is None:
         # only logs whose camera blobs are on disk (partial downloads otherwise crash mid-run)
         blob_logs = {p.name for p in Path(args.sensor_blobs_path).iterdir() if p.is_dir()}
         all_logs = {p.stem for p in Path(args.navsim_log_path).glob("*.pkl")}
@@ -142,7 +142,18 @@ def run(args: argparse.Namespace) -> None:
         scene_filter=scene_filter,
         sensor_config=front_only_sensor_config(SensorConfig),
     )
-    all_tokens = sorted(loader.tokens)
+    raw_root = Path(args.raw_root)
+    raw_root.mkdir(parents=True, exist_ok=True)
+    fail_log = raw_root / "failures.jsonl"
+    if tokens is not None:
+        # keep exactly the requested set; tokens the loader cannot build are recorded as failures
+        known = set(loader.tokens)
+        for t in tokens:
+            if t not in known:
+                _append_jsonl(fail_log, {"token": t, "stage": "filter", "error": "token not in scene loader"})
+        all_tokens = [t for t in tokens if t in known]
+    else:
+        all_tokens = sorted(loader.tokens)
     if args.stride > 1:
         all_tokens = all_tokens[:: args.stride]
     if args.max_scenes > 0:
@@ -150,46 +161,86 @@ def run(args: argparse.Namespace) -> None:
     logger.info("rolling out %d scenes", len(all_tokens))
 
     agent.initialize()
-    raw_root = Path(args.raw_root)
+    timing_log = raw_root / "timing.jsonl"
+    prev_sec = sum(r["sec"] for r in _read_jsonl(timing_log))
+    todo = [t for t in all_tokens if args.overwrite or not (raw_root / t / "streams.npz").exists()]
+    logger.info("%d/%d scenes already done, %d to go (prior rollout time %.2f h)",
+                len(all_tokens) - len(todo), len(all_tokens), len(todo), prev_sec / 3600)
     timings = []
-    for i, token in enumerate(all_tokens):
-        if (raw_root / token / "streams.npz").exists() and not args.overwrite:
-            continue
+    n_fail = 0
+    budget_stop = False
+    for i, token in enumerate(todo):
         t0 = time.time()
-        agent_input = loader.get_agent_input_from_token(token)
-        scene = loader.get_scene_from_token(token)
-        out = agent.rollout(agent_input)
-        gt_rgb = agent.gt_front_frames(scene)
-        gt_traj = _poses(scene.get_future_trajectory(num_trajectory_frames=n_fut))
-        last_ego = agent_input.ego_statuses[-1]
-        meta = {
-            "token": token,
-            "log_name": loader.scene_frames_dicts[token][0]["log_name"],
-            "dataset": "navsim_v1",
-            "split_logs": str(args.navsim_log_path),
-            "fps": float(agent.fps),
-            "num_history_frames": n_hist,
-            "num_future_frames": n_fut,
-            "num_condition_frames": out["num_condition_frames"],
-            "history_padding_mode": agent.history_padding_mode,
-            "video_hw": list(agent.feature_config.video_size),
-            "crop_top_bottom": agent.feature_config.crop_top_bottom,
-            "driving_command": np.asarray(last_ego.driving_command).tolist(),
-            "ego_status_history": out["ego_status"],
-            "pred_trajectory": out["action"],
-            "gt_trajectory": gt_traj,
-            "ade_m": float(np.linalg.norm(out["action"][:, :2] - gt_traj[:, :2], axis=-1).mean()),
-            "sampler": {"num_inference_steps": agent.num_inference_steps, "seed": agent.seed},
-            "checkpoint": str(args.checkpoint),
-        }
-        layout.save_scene_dump(raw_root, token, out["streams"], gt_rgb, meta)
+        try:
+            meta = _rollout_one(agent, loader, token, args, raw_root, n_fut)
+        except Exception as e:  # noqa: BLE001 - one bad scene must not kill a 2 h run
+            n_fail += 1
+            logger.exception("[%d/%d] %s FAILED", i + 1, len(todo), token)
+            _append_jsonl(fail_log, {"token": token, "stage": "rollout", "error": f"{type(e).__name__}: {e}"})
+            torch.cuda.empty_cache()
+            if n_fail >= args.max_failures:
+                raise RuntimeError(f"{n_fail} failed scenes, aborting") from e
+            continue
         timings.append(time.time() - t0)
-        logger.info("[%d/%d] %s  %.1fs  ADE=%.2fm", i + 1, len(all_tokens), token, timings[-1], meta["ade_m"])
+        _append_jsonl(timing_log, {"token": token, "sec": timings[-1]})
+        logger.info("[%d/%d] %s  %.1fs  ADE=%.2fm", i + 1, len(todo), token, timings[-1], meta["ade_m"])
+        if args.budget_gpu_hours > 0 and len(timings) >= 20:
+            projected = prev_sec + np.mean(timings) * len(todo)
+            if projected > args.budget_gpu_hours * 3600:
+                logger.error("projected rollout time %.2f h > budget %.2f h; stopping (resume later)",
+                             projected / 3600, args.budget_gpu_hours)
+                budget_stop = True
+                break
 
     if timings:
-        summary = {"n": len(timings), "sec_per_scene_mean": float(np.mean(timings)), "sec_total": float(np.sum(timings))}
+        summary = {"n": len(timings), "sec_per_scene_mean": float(np.mean(timings)), "sec_total": float(np.sum(timings)),
+                   "n_failed_this_run": n_fail}
         (raw_root / "rollout_timing.json").write_text(json.dumps(summary, indent=2))
         logger.info("timing %s", summary)
+    if budget_stop:
+        raise SystemExit(3)
+
+
+def _append_jsonl(path: Path, rec: dict) -> None:
+    with open(path, "a") as f:
+        f.write(json.dumps(rec) + "\n")
+
+
+def _read_jsonl(path: Path) -> list:
+    if not path.exists():
+        return []
+    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+
+
+def _rollout_one(agent, loader, token, args, raw_root: Path, n_fut: int) -> dict:
+    agent_input = loader.get_agent_input_from_token(token)
+    scene = loader.get_scene_from_token(token)
+    out = agent.rollout(agent_input)
+    gt_rgb = agent.gt_front_frames(scene)
+    gt_traj = _poses(scene.get_future_trajectory(num_trajectory_frames=n_fut))
+    last_ego = agent_input.ego_statuses[-1]
+    meta = {
+        "token": token,
+        "log_name": loader.scene_frames_dicts[token][0]["log_name"],
+        "dataset": "navsim_v1",
+        "split_logs": str(args.navsim_log_path),
+        "fps": float(agent.fps),
+        "num_history_frames": agent.num_history_frames,
+        "num_future_frames": n_fut,
+        "num_condition_frames": out["num_condition_frames"],
+        "history_padding_mode": agent.history_padding_mode,
+        "video_hw": list(agent.feature_config.video_size),
+        "crop_top_bottom": agent.feature_config.crop_top_bottom,
+        "driving_command": np.asarray(last_ego.driving_command).tolist(),
+        "ego_status_history": out["ego_status"],
+        "pred_trajectory": out["action"],
+        "gt_trajectory": gt_traj,
+        "ade_m": float(np.linalg.norm(out["action"][:, :2] - gt_traj[:, :2], axis=-1).mean()),
+        "sampler": {"num_inference_steps": agent.num_inference_steps, "seed": agent.seed},
+        "checkpoint": str(args.checkpoint),
+    }
+    layout.save_scene_dump(raw_root, token, out["streams"], gt_rgb, meta)
+    return meta
 
 
 def parse_args(argv: Optional[list] = None) -> argparse.Namespace:
@@ -207,6 +258,9 @@ def parse_args(argv: Optional[list] = None) -> argparse.Namespace:
     p.add_argument("--num-inference-steps", type=int, default=10)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--overwrite", action="store_true")
+    p.add_argument("--max-failures", type=int, default=50, help="abort after this many failed scenes")
+    p.add_argument("--budget-gpu-hours", type=float, default=0.0,
+                   help="stop early if projected total rollout time exceeds this (0 = off)")
     return p.parse_args(argv)
 
 

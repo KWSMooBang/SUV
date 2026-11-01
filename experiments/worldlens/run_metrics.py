@@ -192,13 +192,36 @@ def run_fvd(wl_root, method, pretrained_root, random_weights, gen_idx, batch_siz
     np.save(save_dir / "gen_feats.npy", f_gen.numpy())
     np.save(save_dir / "gt_feats.npy", f_gt.numpy())
     fvd = frechet_distance(f_gt.clone(), f_gen.clone())
+    (save_dir / "clips.txt").write_text("\n".join(gen_paths) + "\n")
     return {
         "fvd": float(fvd),
         "n_clips": len(gen_paths),
         "feature_dim": int(f_gen.shape[1]),
         "rank_deficient": len(gen_paths) <= int(f_gen.shape[1]),
+        "half_split": fvd_half_split(f_gen, f_gt, frechet_distance),
         "note": "GT = NAVSIM cam_f0 future clips; T<16 upsampled to 16 (nearest)",
     }
+
+
+def fvd_half_split(f_gen, f_gt, frechet_distance):
+    """Same-size comparison against a GT-vs-GT floor.
+
+    Clips (sorted by path) are split by index parity into A (even) and B (odd).
+      gt_A_vs_gt_B    : FVD between two disjoint halves of real clips (sampling-noise floor)
+      gen_A_vs_gt_B / gen_B_vs_gt_A : generated half vs the *other* GT half (no paired scenes), same n
+    """
+    a, b = slice(0, None, 2), slice(1, None, 2)
+    n_a, n_b = int(f_gt[a].shape[0]), int(f_gt[b].shape[0])
+    out = {
+        "n_A": n_a,
+        "n_B": n_b,
+        "gt_A_vs_gt_B": float(frechet_distance(f_gt[a].clone(), f_gt[b].clone())),
+        "gen_A_vs_gt_B": float(frechet_distance(f_gt[b].clone(), f_gen[a].clone())),
+        "gen_B_vs_gt_A": float(frechet_distance(f_gt[a].clone(), f_gen[b].clone())),
+        "rank_deficient": min(n_a, n_b) <= int(f_gt.shape[1]),
+    }
+    out["gen_vs_gt_halves_mean"] = 0.5 * (out["gen_A_vs_gt_B"] + out["gen_B_vs_gt_A"])
+    return out
 
 
 def main(argv=None):
