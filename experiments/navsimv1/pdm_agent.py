@@ -228,7 +228,19 @@ class SUVNavsimV1Agent(AbstractAgent):
         return "suv_navsimv1_agent"
 
     def get_sensor_config(self):
-        return SensorConfig.build_front_only_sensors(include=True)
+        # Official NAVSIM releases (v1.0-v2.2, main) have no build_front_only_sensors;
+        # spell out the front-camera-only config explicitly (same as the v2 agent).
+        return SensorConfig(
+            cam_f0=True,
+            cam_l0=False,
+            cam_l1=False,
+            cam_l2=False,
+            cam_r0=False,
+            cam_r1=False,
+            cam_r2=False,
+            cam_b0=False,
+            lidar_pc=False,
+        )
 
     def initialize(self) -> None:
         if self.model is not None:

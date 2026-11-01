@@ -13,10 +13,10 @@ NAVSIM_ROOT="${REPO_ROOT}/experiments/navsimv2/vendor"
 # Expected Wan layout:
 #   ${CKPT_LOCAL_DIR}/Wan2.2-TI2V-5B/models_t5_umt5-xxl-enc-bf16.pth
 #   ${CKPT_LOCAL_DIR}/Wan2.2-TI2V-5B/google/umt5-xxl/
-CKPT_LOCAL_DIR="/path/to/checkpoints"
+CKPT_LOCAL_DIR="${CKPT_LOCAL_DIR:-/path/to/checkpoints}"
 
 # Shared text-embedding output directory for navtest and navhard
-TEXT_EMBEDDING_CACHE_DIR="/path/to/suv_text_embeds_cache_test/navsim_v2"
+TEXT_EMBEDDING_CACHE_DIR="${TEXT_EMBEDDING_CACHE_DIR:-${TEXT_EMBEDDING_CACHE_DIR_V2:-/path/to/suv_text_embeds_cache_test/navsim_v2}}"
 
 # NAVSIM v2 data
 OPENSCENE_DATA_ROOT="${OPENSCENE_DATA_ROOT:-/path/to/navsim}"

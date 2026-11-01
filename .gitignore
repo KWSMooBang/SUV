@@ -238,3 +238,6 @@ manifest.json
 wandb/
 onelogger.err
 onelogger.log
+
+# SUV setup helpers (the generic env/ rule above targets virtualenvs)
+!experiments/env/

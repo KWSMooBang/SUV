@@ -12,17 +12,17 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 # Expected layout:
 #   ${CKPT_LOCAL_DIR}/suv_navsim.pt
 #   ${CKPT_LOCAL_DIR}/Wan2.2-TI2V-5B/Wan2.2_VAE.pth
-CKPT_LOCAL_DIR="/path/to/checkpoints"
+CKPT_LOCAL_DIR="${CKPT_LOCAL_DIR:-/path/to/checkpoints}"
 
 # Precomputed text embeddings
-TEXT_EMBEDDING_CACHE_DIR="/path/to/suv_text_embeds_cache_test/navsim_v1"
+TEXT_EMBEDDING_CACHE_DIR="${TEXT_EMBEDDING_CACHE_DIR:-${TEXT_EMBEDDING_CACHE_DIR_V1:-/path/to/suv_text_embeds_cache_test/navsim_v1}}"
 
 # NAVSIM v1 data, maps, and metric cache
 OPENSCENE_DATA_ROOT="${OPENSCENE_DATA_ROOT:-/path/to/navsim}"
 NUPLAN_MAPS_ROOT="${NUPLAN_MAPS_ROOT:-/path/to/navsim/maps}"
 NAVSIM_LOG_PATH="${NAVSIM_LOG_PATH:-${OPENSCENE_DATA_ROOT}/navsim_logs/test}"
 SENSOR_BLOBS_PATH="${SENSOR_BLOBS_PATH:-${OPENSCENE_DATA_ROOT}/sensor_blobs/test}"
-METRIC_CACHE_PATH="${METRIC_CACHE_PATH:-/path/to/navsim_v1/metric_cache}"
+METRIC_CACHE_PATH="${METRIC_CACHE_PATH:-${METRIC_CACHE_PATH_V1:-/path/to/navsim_v1/metric_cache}}"
 
 # Evaluation output root
 NAVSIM_EXP_ROOT="${NAVSIM_EXP_ROOT:-/path/to/evaluation_outputs}"
