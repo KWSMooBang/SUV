@@ -121,11 +121,19 @@ def run(args: argparse.Namespace) -> None:
     tokens = None
     if args.tokens_file:
         tokens = [t.strip() for t in Path(args.tokens_file).read_text().splitlines() if t.strip()]
+    log_names = args.log_names or None
+    if log_names is None:
+        # only logs whose camera blobs are on disk (partial downloads otherwise crash mid-run)
+        blob_logs = {p.name for p in Path(args.sensor_blobs_path).iterdir() if p.is_dir()}
+        all_logs = {p.stem for p in Path(args.navsim_log_path).glob("*.pkl")}
+        log_names = sorted(all_logs & blob_logs)
+        if len(log_names) < len(all_logs):
+            logger.warning("sensor blobs present for %d/%d logs; restricting to those", len(log_names), len(all_logs))
     scene_filter = SceneFilter(
         num_history_frames=n_hist,
         num_future_frames=n_fut,
         has_route=True,
-        log_names=args.log_names or None,
+        log_names=log_names,
         tokens=tokens,
     )
     loader = SceneLoader(

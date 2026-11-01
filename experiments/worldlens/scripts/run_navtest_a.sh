@@ -18,7 +18,7 @@ WL_ROOT="${WL_ROOT:-/workspace/SUV-deps/worldlens}"
 WL_PRETRAINED="${WL_PRETRAINED:-${DATA_ROOT}/worldlens/pretrained_models}"
 
 CKPT="${CKPT:-${CKPT_LOCAL_DIR:-${DATA_ROOT}/SUV_ckpt}/suv_navsim.pt}"
-TEXT_EMB="${TEXT_EMB:-${DATA_ROOT}/text_embeds/v1}"
+TEXT_EMB="${TEXT_EMB:-${TEXT_EMBEDDING_CACHE_DIR_V1:-${DATA_ROOT}/text_embeds/v1}}"
 OPENSCENE_DATA_ROOT="${OPENSCENE_DATA_ROOT:-${DATA_ROOT}/navsim}"
 NAVSIM_LOG_PATH="${NAVSIM_LOG_PATH:-${OPENSCENE_DATA_ROOT}/navsim_logs/test}"
 SENSOR_BLOBS_PATH="${SENSOR_BLOBS_PATH:-${OPENSCENE_DATA_ROOT}/sensor_blobs/test}"
@@ -37,6 +37,7 @@ export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 DIFFSYNTH_SKIP_DOWNLOAD=true
 # same convention as experiments/navsimv1/scripts/evaluation/run_pdm_score.sh
 export CKPT_LOCAL_DIR="${CKPT_LOCAL_DIR:-${DATA_ROOT}/SUV_ckpt}"
 export OPENSCENE_DATA_ROOT NUPLAN_MAPS_ROOT="${NUPLAN_MAPS_ROOT:-${OPENSCENE_DATA_ROOT}/maps}"
+export NUPLAN_MAP_VERSION="${NUPLAN_MAP_VERSION:-nuplan-maps-v1.0}"
 
 for s in ${STAGES}; do
   case "$s" in
