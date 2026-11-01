@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Small-scale navtest smoke run: score N scenes whose camera blobs are on disk,
-# on a single GPU, and record wall time + peak GPU memory (nvidia-smi sampling).
-#   bash experiments/env/smoke_navtest.sh v2 [N=20]
+# Small-scale smoke run on a single GPU; records wall time + peak GPU memory
+# (nvidia-smi sampling).
+#   bash experiments/env/smoke_navtest.sh v2 [N=20]   # navtest, N tokens with camera blobs on disk
 #   bash experiments/env/smoke_navtest.sh v1 [N=20]
+#   bash experiments/env/smoke_navtest.sh navhard [LOG] # navhard_two_stage restricted to one log
+#                                                      # (stage-1 tokens + their stage-2 synthetic scenes)
 # Outputs go to ${NAVSIM_EXP_ROOT}/smoke/<v>/ ; summary in smoke_summary.txt there.
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -15,9 +17,14 @@ GPU="${CUDA_VISIBLE_DEVICES%%,*}"
 SMOKE_ROOT="${NAVSIM_EXP_ROOT}/smoke/${WHICH}"
 mkdir -p "${SMOKE_ROOT}"
 
-TOKENS="$(PYTHONPATH="${REPO_ROOT}/experiments/navsimv2/vendor" python -W ignore \
-  "${REPO_ROOT}/experiments/env/pick_smoke_tokens.py" --n "${N}" 2>/dev/null)"
-echo "${TOKENS}" > "${SMOKE_ROOT}/tokens.txt"
+if [[ "${WHICH}" == navhard ]]; then
+  NAVHARD_LOG="${2:-2021.05.25.14.26.37_veh-27_04122_04279}"
+  N="log ${NAVHARD_LOG}"
+else
+  TOKENS="$(PYTHONPATH="${REPO_ROOT}/experiments/navsimv2/vendor" python -W ignore \
+    "${REPO_ROOT}/experiments/env/pick_smoke_tokens.py" --n "${N}" 2>/dev/null)"
+  echo "${TOKENS}" > "${SMOKE_ROOT}/tokens.txt"
+fi
 
 # sample GPU memory of the chosen GPU every second
 nvidia-smi -i "${GPU}" --query-gpu=timestamp,memory.used --format=csv,noheader,nounits -l 1 \
@@ -37,6 +44,11 @@ case "${WHICH}" in
     TEXT_EMBEDDING_CACHE_DIR="${TEXT_EMBEDDING_CACHE_DIR_V2}" METRIC_CACHE_PATH="${METRIC_CACHE_PATH_V2}" \
       bash "${REPO_ROOT}/experiments/navsimv2/scripts/evaluation/run_epdm_score.sh" \
       "train_test_split.scene_filter.tokens=${TOKENS}" ;;
+  navhard)
+    NAVSIM_EXP_ROOT="${SMOKE_ROOT}" CUDA_VISIBLE_DEVICES="${GPU}" \
+    TEXT_EMBEDDING_CACHE_DIR="${TEXT_EMBEDDING_CACHE_DIR_V2}" METRIC_CACHE_PATH="${METRIC_CACHE_PATH_NAVHARD}" \
+      bash "${REPO_ROOT}/experiments/navsimv2/scripts/evaluation/run_navhard_epdm_score.sh" \
+      "train_test_split.scene_filter.log_names=['${NAVHARD_LOG}']" ;;
   *) echo "unknown target ${WHICH}" >&2; exit 2 ;;
 esac 2>&1 | tee "${SMOKE_ROOT}/run.log"
 T1=$(date +%s)
