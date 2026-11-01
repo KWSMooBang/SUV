@@ -132,6 +132,9 @@ def run(args: argparse.Namespace) -> None:
     scene_filter = SceneFilter(
         num_history_frames=n_hist,
         num_future_frames=n_fut,
+        # every frame can be a scene start (navtest.yaml uses 1); the dataclass default
+        # (= num_frames, non-overlapping windows) silently drops ~93% of navtest tokens
+        frame_interval=1,
         has_route=True,
         log_names=log_names,
         tokens=tokens,
