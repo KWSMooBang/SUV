@@ -20,14 +20,14 @@ Nothing here modifies `src/suv` or `experiments/navsim*`; `suv_rollout.py` subcl
 | `make_dummy.py` | either | synthetic dumps for a checkpoint-free smoke |
 | `scripts/run_navtest_a.sh` | — | protocol (a) end to end: `rollout export metrics` |
 | `scripts/smoke_dummy.sh` | — | dummy pipeline smoke |
-| `env/install_worldlens_env.sh` | — | WorldLens env: `base` (conda + nvcc 11.8), `gen` (Generation only, no mmcv), `mm` (mmcv ops etc.) |
+| `scripts/install_worldlens_env.sh` | — | WorldLens env: `base` (conda + nvcc 11.8), `gen` (Generation only, no mmcv), `mm` (mmcv ops etc.) |
 
 ## Run
 
 ```bash
 # Generation-only env (enough for everything in this directory)
-bash experiments/worldlens/env/install_worldlens_env.sh base
-bash experiments/worldlens/env/install_worldlens_env.sh gen
+bash experiments/worldlens/scripts/install_worldlens_env.sh base
+bash experiments/worldlens/scripts/install_worldlens_env.sh gen
 
 # protocol (a) on a few navtest scenes (needs SUV ckpt + v1 text embeddings, see run_pdm_score.sh)
 MAX_SCENES=8 bash experiments/worldlens/scripts/run_navtest_a.sh
