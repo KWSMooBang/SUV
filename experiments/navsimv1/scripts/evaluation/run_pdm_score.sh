@@ -57,7 +57,7 @@ python -u "${REPO_ROOT}/experiments/navsimv1/run_pdm_score_multigpu.py" \
     worker.max_workers=1 \
     worker.use_process_pool=false \
     agent._target_=experiments.navsimv1.pdm_agent.SUVNavsimV1Agent \
-    agent.checkpoint_path="${CKPT_LOCAL_DIR}/suv_navsim.pt" \
+    ++agent.checkpoint_path="${CKPT_LOCAL_DIR}/suv_navsim.pt" \
     ++agent.model_config_path="${REPO_ROOT}/experiments/navsimv1/config/model/suv_navsim.yaml" \
     ++agent.text_embedding_cache_dir="${TEXT_EMBEDDING_CACHE_DIR}" \
     ++agent.visual_conditioning=history_4 \

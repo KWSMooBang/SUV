@@ -66,7 +66,8 @@ def main() -> None:
     picked = picked[: a.n]
     used = sorted({log for log in logs})
     print(f"logs with blobs: {used}", file=sys.stderr)
-    print("[" + ",".join(picked) + "]")
+    # quote tokens: Hydra would parse e.g. 6507522e38405857 as a float (scientific notation)
+    print("[" + ",".join(f"'{t}'" for t in picked) + "]")
 
 
 if __name__ == "__main__":
