@@ -27,6 +27,9 @@ export TEXT_EMBEDDING_CACHE_DIR_V2="${TEXT_EMBEDDING_CACHE_DIR_V2:-${SUV_DATA_RO
 
 # This machine: GPU 0 only (1-3 are used by other projects)
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
+# On a 24 GB card the default caching allocator spikes to ~24.2 GB during SUV
+# inference; expandable segments keep it at ~14.3 GB (measured in setup smoke).
+export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
 
 # Python env (uv venv; conda is unusable in this container)
 if [[ -z "${VIRTUAL_ENV:-}" && -f "${SUV_VENV}/bin/activate" ]]; then
