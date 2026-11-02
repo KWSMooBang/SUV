@@ -18,6 +18,7 @@ Nothing here modifies `src/suv` or `experiments/navsim*`; `suv_rollout.py` subcl
 | `export_worldlens.py` | either | raw dumps → `generated_results/{<method>,gt}/video_submission/<token>_gen0/CAM_FRONT.mp4` |
 | `run_metrics.py` | WorldLens (py3.9, torch 2.1+cu118) | FVD (NAVSIM GT), Temporal Consistency (CLIP), Subject Consistency (DINO) |
 | `make_dummy.py` | either | synthetic dumps for a checkpoint-free smoke |
+| `viz/make_viz.py` | SUV env, CPU only | raw dumps → per-scene mp4 (GT/SUV/diff/depth/seg/instance + BEV), PNG grids, `index.html` (24-scene ADE best/worst/random selection or `--tokens`) |
 | `scripts/run_navtest_a.sh` | — | protocol (a) end to end: `rollout export metrics` |
 | `scripts/smoke_dummy.sh` | — | dummy pipeline smoke |
 | `scripts/install_worldlens_env.sh` | — | WorldLens env: `base` (conda + nvcc 11.8), `gen` (Generation only, no mmcv), `mm` (mmcv ops etc.) |
